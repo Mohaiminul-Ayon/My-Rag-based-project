@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Doctor Nearby You</title>
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; background: #f6f8fb; color: #17202a; }
+    header { display: flex; justify-content: space-between; align-items: center; padding: 18px 28px; background: white; border-bottom: 1px solid #e5eaf0; }
+    main { max-width: 880px; margin: 44px auto; padding: 0 20px; }
+    h1 { font-size: 42px; margin: 0 0 8px; }
+    .mode { display: flex; gap: 8px; }
+    .mode button, form button { border: 0; border-radius: 8px; padding: 10px 14px; background: #0f766e; color: white; cursor: pointer; }
+    .mode button:last-child { background: #e5eaf0; color: #17202a; }
+    .chat { background: white; border: 1px solid #dbe3ea; border-radius: 12px; padding: 18px; box-shadow: 0 8px 24px #1f293714; }
+    textarea, input { width: 100%; box-sizing: border-box; border: 1px solid #cfd8e3; border-radius: 8px; padding: 12px; font-size: 16px; }
+    textarea { min-height: 120px; resize: vertical; margin: 14px 0 10px; }
+    input { margin-bottom: 10px; }
+    .reply, .card { background: white; border: 1px solid #dbe3ea; border-radius: 10px; padding: 14px; margin-top: 14px; }
+    .card h3 { margin: 0 0 6px; }
+    .muted { color: #5c6b7a; }
+    .emergency { border-color: #dc2626; background: #fff1f2; }
+  </style>
+</head>
+<body>
+  <header>
+    <strong>Doctor Nearby You</strong>
+    <div class="mode"><button>Patient</button><button type="button">As a Doctor</button></div>
+  </header>
+  <main>
+    <h1>Doctor Nearby You</h1>
+    <p class="muted">Describe your problem. This app suggests possible specialists, not a diagnosis.</p>
+    <section class="chat">
+      <form id="chat-form">
+        <input id="location" placeholder="Your city/area, e.g. Dhaka">
+        <textarea id="message" placeholder="What's your problem?"></textarea>
+        <button>Ask</button>
+      </form>
+    </section>
+    <section id="result"></section>
+  </main>
+  <script>
+    const form = document.querySelector("#chat-form");
+    const result = document.querySelector("#result");
+    const askButton = form.querySelector("button");
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const message = document.querySelector("#message").value.trim();
+      if (!message) {
+        result.innerHTML = "<p class='reply'>Please describe your problem first.</p>";
+        return;
+      }
+
+      askButton.disabled = true;
+      result.innerHTML = "<p class='muted'>Searching...</p>";
+      try {
+        const response = await fetch("/api/chat", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({
+            message,
+            location: document.querySelector("#location").value.trim()
+          })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
+
+        const doctors = (data.doctors || []).map(item => `
+          <article class="card">
+            <h3>${item.name}</h3>
+            <p>${item.specialty || ""}</p>
+            <p class="muted">${item.region || ""}</p>
+            ${(item.chambers || []).slice(0, 2).map(chamber => `
+              <p><strong>${chamber.hospital || ""}</strong><br>${chamber.address || ""}<br>${chamber.visiting_hours || ""}<br>${(chamber.phones || []).join(", ")}</p>
+            `).join("")}
+            <a href="${item.source_url}" target="_blank" rel="noreferrer">Source</a>
+          </article>
+        `).join("");
+        result.innerHTML = `
+          <div class="reply ${data.safety_level === "emergency" ? "emergency" : ""}">
+            <p>${data.reply || ""}</p>
+            ${(data.questions || []).map(q => `<p class="muted">Question: ${q}</p>`).join("")}
+          </div>
+          ${doctors}
+        `;
+      } catch (error) {
+        result.innerHTML = `<p class="reply">Could not reach the app server. In PowerShell, open the project folder and run <code>go run ./backend/cmd/api</code>, then refresh this page. Details: ${error.message}</p>`;
+      } finally {
+        askButton.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

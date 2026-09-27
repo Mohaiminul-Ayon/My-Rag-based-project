@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+*.tmp
+.venv/
+.gocache/
+.env
+.env.*
+!.env.example
+crawler/data/crawl.sqlite3*
